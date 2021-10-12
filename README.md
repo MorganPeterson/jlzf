@@ -16,7 +16,7 @@ Original files can be found here: [dist.schmorp.de](http://dist.schmorp.de/liblz
 
 ## install
 ```sh
-sudo janet install https://github.com/MorganPeterson/jlzf
+sudo jpm install https://github.com/MorganPeterson/jlzf
 ```
 
 ## example
