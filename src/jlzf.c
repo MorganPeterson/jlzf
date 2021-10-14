@@ -3,9 +3,6 @@
 #include <errno.h>
 #include "../liblzf-3.6/lzf.h"
 
-#define COMPRESSED_MAX(n) ((((n) * 33) >> 5) + 1)
-#define MAX_CHUNK 64 * 1024 - 1
-
 int
 writeFile(const char* fileName, const void* data, size_t size)
 {
@@ -25,26 +22,28 @@ writeFile(const char* fileName, const void* data, size_t size)
 static Janet
 cfun_compress(int32_t argc, Janet *argv) {
   janet_fixarity(argc, 2);
+
   const char* fileName = janet_getcstring(argv, 0);
-  const char* in_data = janet_getcstring(argv, 1);
+  const void *const in_data = janet_getcstring(argv, 1);
+  unsigned int in_len = strlen(in_data);
   
-  unsigned int size = strlen(in_data);
-  unsigned int out_len = size * 1.04f + 8;
-  void *out_data = malloc(sizeof(char) * out_len);
+  unsigned int out_len = (in_len * 1.04) - 1;
+  void *out_data = janet_smalloc(out_len);
 
   if (out_data == NULL) {
-    janet_panic("ENOMEM in jlzf/compress");
+    janet_sfree(out_data);
+    janet_panic("ENOMEM");
   }
 
-  unsigned int l = lzf_compress(in_data, size, out_data, out_len);
+  unsigned int l = lzf_compress(in_data, in_len, out_data, out_len);
 
   if (l == 0) {
-    free(out_data);
-    janet_panic("jlzf/compress failed");
+    janet_sfree(out_data);
+    janet_panic("unable to compress data");
   }
 
   int result = writeFile(fileName, out_data, l);
-  free(out_data);
+  janet_sfree(out_data);
 
   if (result) {
     return janet_wrap_true();
@@ -58,46 +57,57 @@ cfun_decompress(int32_t argc, Janet *argv) {
   janet_fixarity(argc, 1);
   const char* fileName = janet_getcstring(argv, 0);
   
-  char *buffer = NULL;
   FILE* file;
+  unsigned int size;
   unsigned int out_len;
-  size_t size;
   void* out_data;
   unsigned int l;
 
-  if (fileName && *fileName != '\0') {
-    file = fopen(fileName, "rb");
-    if (file) {
-      fseek(file, 0L, SEEK_END);
-      long s = ftell(file);
-      size = s;
-      rewind(file);
-      buffer = malloc(s);
-      if (buffer) {
-        fread(buffer, s, 1, file);
-        fclose(file);
-      }
-    }
+  if (!fileName || *fileName == '\0') {
+    janet_panic("no file name provided");
   }
 
-  if (buffer != NULL) {
-    out_len = COMPRESSED_MAX(MAX_CHUNK);
-    out_data = malloc(out_len);
-    if (out_data == NULL) {
-      janet_panic("ENOMEM in jlzf/decompress");
-    }
-    l = lzf_decompress(buffer, size, out_data, out_len);
-    if (l == 0) {
-      free(out_data);
-      free(buffer);
-      janet_panic("E2BIG jlzf/decompress");
-    }
-    Janet out = janet_wrap_string(strdup(out_data));
-    free(out_data);
-    free(buffer);
-    return out;
+  file = fopen(fileName, "rb");
+  if (!file) {
+    janet_panic("unable to open file for decompression");
   }
-  return janet_wrap_string("");
+
+  fseek(file, 0L, SEEK_END);
+  size = ftell(file);
+  rewind(file);
+  void *const in_data = janet_smalloc(size);
+  if (in_data) {
+    fread(in_data, size, 1, file);
+    fclose(file);
+  }
+
+  if (in_data == NULL) {
+    janet_sfree(in_data);
+    janet_panic("no data read in from file");
+  }
+
+  out_len = (size * 5.0f) * 2.0f;
+  out_data = janet_smalloc(sizeof(char) * out_len);
+
+  if (out_data == NULL) {
+    janet_sfree(in_data);
+    janet_panic("ENOMEM");
+  }
+
+  l = lzf_decompress((const void *const)in_data, size, out_data, out_len);
+
+  if (l == 0) {
+    janet_sfree(out_data);
+    janet_sfree(in_data);
+    janet_panic("E2BIG");
+  }
+
+  Janet out = janet_wrap_string(strdup((char *)out_data));
+
+  janet_sfree(out_data);
+  janet_sfree(in_data);
+
+  return out;
 }
 
 static JanetReg cfuns[] = {

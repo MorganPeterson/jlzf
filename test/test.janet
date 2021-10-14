@@ -5,5 +5,6 @@
 (assert (jlzf/compress "test/test.lzf" text) "compress and write file")
 
 (def result (jlzf/decompress "test/test.lzf"))
+(print result)
 
 (assert (= result text) "decompressed text matches original text")

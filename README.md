@@ -36,3 +36,7 @@ The test.janet file in the test directory should give you some idea of the worki
 # decompress returns a string
 (print (jlzf/decompress "test.lzf"))
 ```
+
+## Caveat
+
+Compression fails on files that are 17 bytes or less. If you have to compress something that small... well, may the gods help you.
