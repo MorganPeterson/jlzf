@@ -1,3 +1,7 @@
+# NOTICE
+
+__I am moving all future work to [Sourcehut](https://git.sr.ht/~nullevoid/jlzf) and this repository is now archived.__
+
 # JLZF
 
 A Janet native module that allows for use of [liblzf](http://software.schmorp.de/pkg/liblzf.html)
